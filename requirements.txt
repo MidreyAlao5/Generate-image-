@@ -4,3 +4,4 @@ filters
 requests
 python-dotenv
 telebot
+aiogram
