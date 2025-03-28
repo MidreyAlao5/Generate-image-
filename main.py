@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 from openai import OpenAI
@@ -54,7 +55,7 @@ async def main():
     logger.info("Bot is running...")
     await app.run_polling()
 
-# Run the bot
+# Run the bot safely
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
