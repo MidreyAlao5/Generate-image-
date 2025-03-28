@@ -1,41 +1,42 @@
 import openai
-import telebot
 import os
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Set up environment variables (Make sure to set these in your deployment)
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Load your OpenAI API key from environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize the bot
-bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-openai.api_key = OPENAI_API_KEY
-
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "Welcome! Send me a text prompt, and I'll generate an image for you using AI!")
-
-@bot.message_handler(commands=['generate'])
-def generate_image(message):
-    prompt = message.text.replace("/generate", "").strip()
-    
+def generate_image(update: Update, context: CallbackContext) -> None:
+    prompt = ' '.join(context.args)
     if not prompt:
-        bot.reply_to(message, "Please provide a prompt for the image generation. Example: `/generate a futuristic city`")
+        update.message.reply_text("Please provide a prompt. Usage: /generate <description>")
         return
-    
-    bot.reply_to(message, "Generating image, please wait...")
 
     try:
-        response = openai.Image.create(
+        response = openai.images.generate(
+            model="dall-e-3",  # Use "dall-e-3" for better quality
             prompt=prompt,
-            n=1,  # Generate one image
-            size="1024x1024"  # You can also use "512x512" or "256x256"
+            n=1,
+            size="1024x1024"
         )
-
-        image_url = response['data'][0]['url']
-        bot.send_photo(message.chat.id, image_url, caption="Here is your AI-generated image!")
-
+        image_url = response.data[0].url
+        update.message.reply_photo(photo=image_url, caption="Here is your generated image!")
     except Exception as e:
-        bot.reply_to(message, f"Image generation failed. Error: {str(e)}")
+        update.message.reply_text(f"Image generation failed. Error: {e}")
 
-# Start polling
-bot.polling()
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text("Welcome! Send /generate <text> to create an image.")
+
+def main():
+    bot_token = os.getenv("BOT_TOKEN")
+    updater = Updater(bot_token, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("generate", generate_image))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == "__main__":
+    main()
