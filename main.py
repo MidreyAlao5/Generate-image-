@@ -2,23 +2,27 @@ import os
 import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from dotenv import load_dotenv
 
-# Replace with your Hugging Face API key
-HF_API_KEY = "YOUR_HF_API_KEY"
-HF_MODEL = "stabilityai/stable-diffusion-2"  # Model name
+# Load environment variables from .env file
+load_dotenv()
 
-# Function to generate images using Hugging Face
+# Get API keys from environment variables
+HF_API_KEY = os.getenv("HF_API_KEY")
+HF_MODEL = "stabilityai/stable-diffusion-2"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Function to generate images using Hugging Face API
 def generate_image(prompt):
     url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     payload = {"inputs": prompt}
 
     response = requests.post(url, headers=headers, json=payload)
-    
+
     if response.status_code == 200:
-        return response.content  # Returns image data
-    else:
-        return None  # Handle errors
+        return response.content  # Image data
+    return None  # Handle failure
 
 # Telegram command to generate images
 async def image_command(update: Update, context: CallbackContext):
@@ -41,7 +45,6 @@ async def start(update: Update, context: CallbackContext):
     await update.message.reply_text("Send /image <prompt> to generate an image.")
 
 def main():
-    BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
