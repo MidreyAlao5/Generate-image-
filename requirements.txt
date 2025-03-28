@@ -1,5 +1,6 @@
 python-telegram-bot
 openai
+filters
 requests
 python-dotenv
 telebot
