@@ -1,60 +1,55 @@
 import os
-import openai
 import logging
 from dotenv import load_dotenv
+from openai import OpenAI
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Load environment variables from .env
+# Load environment variables
 load_dotenv()
 
-# Get API keys from environment variables
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Telegram & OpenAI API keys
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Set OpenAI API key
-openai.api_key = OPENAI_API_KEY
+# Initialize OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# Configure logging
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-async def start(update: Update, context: CallbackContext) -> None:
-    """Send a welcome message when the bot starts"""
-    await update.message.reply_text("🎨 Send me a prompt, and I'll generate an image using DALL·E!")
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text("Send me a prompt, and I'll generate an image for you!")
 
-async def generate_image(update: Update, context: CallbackContext) -> None:
-    """Generate an image using OpenAI DALL·E"""
-    user_prompt = update.message.text
-    await update.message.reply_text("🖌 Generating image, please wait...")
+def generate_image(update: Update, context: CallbackContext) -> None:
+    prompt = update.message.text.strip()
+    if not prompt:
+        update.message.reply_text("Please provide a valid prompt for image generation.")
+        return
+
+    update.message.reply_text("Generating image, please wait...")
 
     try:
-        response = openai.Image.create(
-            prompt=user_prompt,
-            n=1,  # Generate one image
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
             size="1024x1024"
         )
-        image_url = response['data'][0]['url']
-
-        # Send the image to the user
-        await update.message.reply_photo(photo=image_url, caption=f"🖼 Here’s your image!\n\nPrompt: {user_prompt}")
-
+        image_url = response.data[0].url
+        update.message.reply_photo(photo=image_url, caption=f"Prompt: {prompt}")
     except Exception as e:
-        logger.error(f"Error generating image: {e}")
-        await update.message.reply_text("❌ Failed to generate image. Please try again later.")
+        logging.error(f"Error generating image: {e}")
+        update.message.reply_text("❌ Failed to generate image. Please try again.")
 
 def main():
-    """Start the bot"""
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, generate_image))
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, generate_image))
 
-    # Run the bot
-    app.run_polling()
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
