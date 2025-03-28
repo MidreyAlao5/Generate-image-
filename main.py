@@ -1,56 +1,59 @@
 import os
-import requests
+import openai
+import logging
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables from .env
 load_dotenv()
 
 # Get API keys from environment variables
-HF_API_KEY = os.getenv("HF_API_KEY")
-HF_MODEL = "stabilityai/stable-diffusion-2"
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Function to generate images using Hugging Face API
-def generate_image(prompt):
-    url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    payload = {"inputs": prompt}
+# Set OpenAI API key
+openai.api_key = OPENAI_API_KEY
 
-    response = requests.post(url, headers=headers, json=payload)
+# Enable logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-    if response.status_code == 200:
-        return response.content  # Image data
-    return None  # Handle failure
+async def start(update: Update, context: CallbackContext) -> None:
+    """Send a welcome message when the bot starts"""
+    await update.message.reply_text("🎨 Send me a prompt, and I'll generate an image using DALL·E!")
 
-# Telegram command to generate images
-async def image_command(update: Update, context: CallbackContext):
-    if not context.args:
-        await update.message.reply_text("Please provide a prompt! Example: /image A futuristic city at sunset")
-        return
+async def generate_image(update: Update, context: CallbackContext) -> None:
+    """Generate an image using OpenAI DALL·E"""
+    user_prompt = update.message.text
+    await update.message.reply_text("🖌 Generating image, please wait...")
 
-    prompt = " ".join(context.args)
-    await update.message.reply_text("Generating image, please wait...")
+    try:
+        response = openai.Image.create(
+            prompt=user_prompt,
+            n=1,  # Generate one image
+            size="1024x1024"
+        )
+        image_url = response['data'][0]['url']
 
-    image_data = generate_image(prompt)
+        # Send the image to the user
+        await update.message.reply_photo(photo=image_url, caption=f"🖼 Here’s your image!\n\nPrompt: {user_prompt}")
 
-    if image_data:
-        await update.message.reply_photo(photo=image_data, caption=f"Prompt: {prompt}")
-    else:
-        await update.message.reply_text("Failed to generate image. Try again later.")
-
-# Start bot
-async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text("Send /image <prompt> to generate an image.")
+    except Exception as e:
+        logger.error(f"Error generating image: {e}")
+        await update.message.reply_text("❌ Failed to generate image. Please try again later.")
 
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+    """Start the bot"""
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("image", image_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, generate_image))
 
-    print("Bot is running...")
+    # Run the bot
     app.run_polling()
 
 if __name__ == "__main__":
